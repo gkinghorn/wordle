@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wordle</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #121213;
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  header {
+    width: 100%;
+    max-width: 500px;
+    text-align: center;
+    padding: 14px 0;
+    border-bottom: 1px solid #3a3a3c;
+  }
+
+  header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: 0.2rem;
+  }
+
+  #game {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    flex: 1;
+    width: 100%;
+    max-width: 500px;
+    padding: 20px 0;
+  }
+
+  #toast-container {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .toast {
+    background: #fff;
+    color: #121213;
+    font-weight: 700;
+    font-size: 0.9rem;
+    padding: 12px 20px;
+    border-radius: 6px;
+    animation: fadeIn 0.15s ease;
+  }
+
+  .toast.fade-out {
+    animation: fadeOut 0.3s ease forwards;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+  #board {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 24px;
+  }
+
+  .row {
+    display: flex;
+    gap: 5px;
+  }
+
+  .tile {
+    width: 62px;
+    height: 62px;
+    border: 2px solid #3a3a3c;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #fff;
+    user-select: none;
+  }
+
+  .tile.filled { border-color: #565758; }
+  .tile.correct { background: #538d4e; border-color: #538d4e; }
+  .tile.present { background: #b59f3b; border-color: #b59f3b; }
+  .tile.absent { background: #3a3a3c; border-color: #3a3a3c; }
+
+  .tile.pop {
+    animation: pop 0.1s ease;
+  }
+
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  .tile.flip {
+    animation: flip 0.5s ease forwards;
+  }
+
+  @keyframes flip {
+    0% { transform: rotateX(0deg); }
+    50% { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+  }
+
+  .row.shake {
+    animation: shake 0.3s ease;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+  }
+
+  #keyboard {
+    width: 100%;
+    max-width: 500px;
+    padding: 0 8px;
+  }
+
+  .kb-row {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .key {
+    height: 58px;
+    min-width: 43px;
+    padding: 0 6px;
+    background: #818384;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    user-select: none;
+    transition: background 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .key:active { opacity: 0.8; }
+  .key.wide { min-width: 65px; font-size: 0.75rem; }
+  .key.correct { background: #538d4e; }
+  .key.present { background: #b59f3b; }
+  .key.absent { background: #3a3a3c; }
+
+  #controls {
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+
+  #new-game {
+    padding: 10px 28px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #16213e, #0f3460);
+    color: #e0e0e0;
+    transition: all 0.2s;
+    letter-spacing: 1px;
+  }
+
+  #new-game:hover {
+    background: linear-gradient(135deg, #1a2a50, #1a4a80);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+
+  @media (max-width: 400px) {
+    .tile { width: 52px; height: 52px; font-size: 1.6rem; }
+    .key { height: 50px; min-width: 32px; font-size: 0.75rem; }
+    .key.wide { min-width: 50px; font-size: 0.65rem; }
+  }
+</style>
+</head>
+<body>
+  <header><h1>WORDLE</h1></header>
+  <div id="toast-container"></div>
+  <div id="game">
+    <div id="board"></div>
+    <div id="keyboard"></div>
+    <div id="controls">
+      <button id="new-game">New Game</button>
+    </div>
+  </div>
+
+<script>
+const WORD_LENGTH = 5;
+const MAX_GUESSES = 5;
+const FLIP_DURATION = 500;
+const FLIP_STAGGER = 300;
+const API_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
+
+let wordList = [];
+let targetWord = '';
+let guesses = [];
+let currentGuess = '';
+let currentRow = 0;
+let gameOver = false;
+let validating = false;
+let letterStatus = {};
+
+const boardEl = document.getElementById('board');
+const keyboardEl = document.getElementById('keyboard');
+const toastContainer = document.getElementById('toast-container');
+
+const KB_ROWS = [
+  ['q','w','e','r','t','y','u','i','o','p'],
+  ['a','s','d','f','g','h','j','k','l'],
+  ['Enter','z','x','c','v','b','n','m','Backspace']
+];
+
+function createBoard() {
+  boardEl.innerHTML = '';
+  for (let r = 0; r < MAX_GUESSES; r++) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.dataset.row = r;
+    for (let c = 0; c < WORD_LENGTH; c++) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.dataset.row = r;
+      tile.dataset.col = c;
+      row.appendChild(tile);
+    }
+    boardEl.appendChild(row);
+  }
+}
+
+function createKeyboard() {
+  keyboardEl.innerHTML = '';
+  for (const row of KB_ROWS) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'kb-row';
+    for (const key of row) {
+      const btn = document.createElement('button');
+      btn.className = 'key';
+      if (key === 'Enter' || key === 'Backspace') btn.classList.add('wide');
+      btn.dataset.key = key;
+      btn.textContent = key === 'Backspace' ? 'DEL' : key;
+      btn.addEventListener('click', () => handleInput(key));
+      rowEl.appendChild(btn);
+    }
+    keyboardEl.appendChild(rowEl);
+  }
+}
+
+function getTile(row, col) {
+  return boardEl.querySelector(`.tile[data-row="${row}"][data-col="${col}"]`);
+}
+
+function getRow(row) {
+  return boardEl.querySelector(`.row[data-row="${row}"]`);
+}
+
+function getKey(letter) {
+  return keyboardEl.querySelector(`.key[data-key="${letter}"]`);
+}
+
+async function loadWords() {
+  try {
+    const res = await fetch('words.txt');
+    const text = await res.text();
+    wordList = text.split('\n').map(w => w.trim().toLowerCase()).filter(w => w.length === WORD_LENGTH);
+    if (wordList.length === 0) throw new Error('Empty word list');
+  } catch (e) {
+    showToast('Could not load words.txt. Serve via a local HTTP server.', 5000);
+    wordList = ['crane','stare','blood','brain','flame','grape','house','light','money','plant',
+                'quick','right','space','table','water','world','youth','zebra','angel','brave'];
+  }
+}
+
+function initGame() {
+  targetWord = wordList[Math.floor(Math.random() * wordList.length)];
+  guesses = [];
+  currentGuess = '';
+  currentRow = 0;
+  gameOver = false;
+  validating = false;
+  letterStatus = {};
+  createBoard();
+  resetKeyboardColors();
+  clearToasts();
+}
+
+function resetKeyboardColors() {
+  keyboardEl.querySelectorAll('.key').forEach(k => {
+    k.classList.remove('correct', 'present', 'absent');
+  });
+}
+
+function handleInput(key) {
+  if (gameOver || validating) return;
+
+  if (key === 'Backspace') {
+    removeLetter();
+  } else if (key === 'Enter') {
+    submitGuess();
+  } else if (/^[a-z]$/i.test(key) && key.length === 1) {
+    addLetter(key.toLowerCase());
+  }
+}
+
+function addLetter(letter) {
+  if (currentGuess.length >= WORD_LENGTH) return;
+  currentGuess += letter;
+  const col = currentGuess.length - 1;
+  const tile = getTile(currentRow, col);
+  tile.textContent = letter;
+  tile.classList.add('filled');
+  tile.classList.remove('pop');
+  void tile.offsetWidth;
+  tile.classList.add('pop');
+}
+
+function removeLetter() {
+  if (currentGuess.length === 0) return;
+  const col = currentGuess.length - 1;
+  const tile = getTile(currentRow, col);
+  tile.textContent = '';
+  tile.classList.remove('filled', 'pop');
+  currentGuess = currentGuess.slice(0, -1);
+}
+
+async function submitGuess() {
+  if (currentGuess.length < WORD_LENGTH) {
+    showToast('Not enough letters');
+    shakeRow(currentRow);
+    return;
+  }
+
+  const guess = currentGuess.toLowerCase();
+
+  if (!wordList.includes(guess)) {
+    validating = true;
+    try {
+      const res = await fetch(API_URL + guess);
+      if (!res.ok) {
+        validating = false;
+        showToast('Not in dictionary');
+        shakeRow(currentRow);
+        return;
+      }
+    } catch {
+      // API unreachable — accept the guess
+    }
+    validating = false;
+  }
+
+  const result = evaluateGuess(guess, targetWord);
+  guesses.push(guess);
+
+  await flipRow(currentRow, guess, result);
+  updateLetterStatus(guess, result);
+  updateKeyboardColors();
+
+  if (guess === targetWord) {
+    gameOver = true;
+    const messages = ['Genius!', 'Magnificent!', 'Impressive!', 'Splendid!', 'Great!'];
+    setTimeout(() => showToast(messages[currentRow] || 'Nice!', 3000), 200);
+    currentRow++;
+    return;
+  }
+
+  currentRow++;
+  currentGuess = '';
+
+  if (currentRow >= MAX_GUESSES) {
+    gameOver = true;
+    setTimeout(() => showToast(`The word was ${targetWord.toUpperCase()}`, 5000), 200);
+  }
+}
+
+function evaluateGuess(guess, target) {
+  const result = Array(WORD_LENGTH).fill('absent');
+  const targetCounts = {};
+
+  for (const ch of target) targetCounts[ch] = (targetCounts[ch] || 0) + 1;
+
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    if (guess[i] === target[i]) {
+      result[i] = 'correct';
+      targetCounts[guess[i]]--;
+    }
+  }
+
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    if (result[i] !== 'correct' && targetCounts[guess[i]] > 0) {
+      result[i] = 'present';
+      targetCounts[guess[i]]--;
+    }
+  }
+
+  return result;
+}
+
+function flipRow(row, guess, result) {
+  return new Promise(resolve => {
+    for (let i = 0; i < WORD_LENGTH; i++) {
+      const tile = getTile(row, i);
+      const delay = i * FLIP_STAGGER;
+
+      setTimeout(() => {
+        tile.classList.add('flip');
+        setTimeout(() => {
+          tile.classList.add(result[i]);
+        }, FLIP_DURATION / 2);
+      }, delay);
+    }
+
+    setTimeout(resolve, WORD_LENGTH * FLIP_STAGGER + FLIP_DURATION);
+  });
+}
+
+function updateLetterStatus(guess, result) {
+  const priority = { correct: 3, present: 2, absent: 1 };
+  for (let i = 0; i < WORD_LENGTH; i++) {
+    const letter = guess[i];
+    const current = letterStatus[letter];
+    if (!current || priority[result[i]] > priority[current]) {
+      letterStatus[letter] = result[i];
+    }
+  }
+}
+
+function updateKeyboardColors() {
+  for (const [letter, status] of Object.entries(letterStatus)) {
+    const key = getKey(letter);
+    if (key) {
+      key.classList.remove('correct', 'present', 'absent');
+      key.classList.add(status);
+    }
+  }
+}
+
+function shakeRow(row) {
+  const rowEl = getRow(row);
+  rowEl.classList.remove('shake');
+  void rowEl.offsetWidth;
+  rowEl.classList.add('shake');
+  setTimeout(() => rowEl.classList.remove('shake'), 300);
+}
+
+function showToast(message, duration = 1500) {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+function clearToasts() {
+  toastContainer.innerHTML = '';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const key = e.key;
+  if (key === 'Backspace' || key === 'Enter') {
+    e.preventDefault();
+    handleInput(key);
+  } else if (/^[a-zA-Z]$/.test(key)) {
+    handleInput(key.toLowerCase());
+  }
+});
+
+document.getElementById('new-game').addEventListener('click', () => {
+  initGame();
+});
+
+loadWords().then(() => {
+  createBoard();
+  createKeyboard();
+  initGame();
+});
+</script>
+</body>
+</html>
